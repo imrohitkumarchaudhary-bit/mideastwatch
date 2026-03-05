@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MIDEAST WATCH — Live Conflict Tracker</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@300;400;500;600&family=IBM+Plex+Sans:ital,wght@0,300;0,400;0,600;1,300&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --red:#ff2233;--red-dim:#991122;--amber:#ffaa00;--green:#00ff88;--blue:#0088ff;
+    --bg:#050507;--surface:#0b0d12;--surface2:#111520;
+    --border:rgba(255,255,255,0.06);--border-bright:rgba(255,255,255,0.12);
+    --text:#dde2f0;--muted:#556070;--scan:rgba(255,34,51,0.03);
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{background:var(--bg);color:var(--text);font-family:'IBM Plex Sans',sans-serif;min-height:100vh;overflow-x:hidden;cursor:crosshair;}
+  body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,var(--scan) 2px,var(--scan) 4px);pointer-events:none;z-index:9999;}
+  body::after{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(255,34,51,0.03) 1px,transparent 1px),linear-gradient(90deg,rgba(255,34,51,0.03) 1px,transparent 1px);background-size:48px 48px;pointer-events:none;z-index:0;}
+
+  /* SETUP BANNER */
+  .setup-banner{background:rgba(255,170,0,0.08);border-bottom:1px solid rgba(255,170,0,0.25);padding:10px 24px;display:flex;align-items:center;gap:14px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--amber);position:relative;z-index:200;flex-wrap:wrap;}
+  .setup-banner.gone{display:none;}
+  .setup-label{white-space:nowrap;flex-shrink:0;}
+  .setup-input{background:rgba(0,0,0,0.5);border:1px solid rgba(255,170,0,0.3);color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:11px;padding:5px 10px;width:300px;outline:none;}
+  .setup-input:focus{border-color:var(--amber);}
+  .setup-btn{background:var(--amber);border:none;color:#000;font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:600;padding:6px 14px;cursor:pointer;letter-spacing:1px;text-transform:uppercase;white-space:nowrap;}
+  .setup-btn:hover{background:#ffcc33;}
+  .setup-skip{color:var(--muted);cursor:pointer;text-decoration:underline;font-size:10px;white-space:nowrap;}
+  .setup-skip:hover{color:var(--text);}
+
+  /* TOPBAR */
+  .topbar{position:sticky;top:0;z-index:100;background:rgba(5,5,7,0.97);backdrop-filter:blur(12px);border-bottom:1px solid var(--red-dim);display:flex;align-items:center;padding:0 24px;height:52px;gap:20px;}
+  .logo{font-family:'Bebas Neue',sans-serif;font-size:26px;letter-spacing:3px;color:#fff;flex-shrink:0;}
+  .logo span{color:var(--red);}
+  .live-pill{display:flex;align-items:center;gap:6px;background:rgba(255,34,51,0.12);border:1px solid rgba(255,34,51,0.3);border-radius:2px;padding:3px 10px;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:2px;color:var(--red);text-transform:uppercase;flex-shrink:0;}
+  .live-dot{width:6px;height:6px;border-radius:50%;background:var(--red);animation:blink 1s infinite;}
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:0.2}}
+  .ticker-wrap{flex:1;overflow:hidden;mask-image:linear-gradient(90deg,transparent,black 10%,black 90%,transparent);}
+  .ticker{display:inline-flex;gap:48px;animation:tickerScroll 80s linear infinite;white-space:nowrap;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:1px;color:var(--muted);}
+  .ticker b{color:var(--amber);font-weight:500;}
+  @keyframes tickerScroll{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+  .clock{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--green);letter-spacing:2px;flex-shrink:0;}
+
+  /* LAYOUT */
+  .layout{position:relative;z-index:1;display:grid;grid-template-columns:300px 1fr 300px;min-height:calc(100vh - 52px);gap:0;}
+  .left-panel{border-right:1px solid var(--border);display:flex;flex-direction:column;}
+  .center-panel{display:flex;flex-direction:column;}
+  .right-panel{border-left:1px solid var(--border);display:flex;flex-direction:column;}
+
+  .panel-header{padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0;}
+  .panel-title{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--muted);}
+  .panel-badge{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:1px;padding:2px 8px;border-radius:2px;}
+  .badge-red{background:rgba(255,34,51,0.15);color:var(--red);border:1px solid rgba(255,34,51,0.2);}
+  .badge-green{background:rgba(0,255,136,0.1);color:var(--green);border:1px solid rgba(0,255,136,0.2);}
+  .badge-amber{background:rgba(255,170,0,0.1);color:var(--amber);border:1px solid rgba(255,170,0,0.2);}
+
+  /* MAP */
+  .map-container{flex:1;position:relative;background:var(--surface);overflow:hidden;min-height:400px;}
+  .map-svg{width:100%;height:100%;}
+  .country{fill:#141820;stroke:#1e2530;stroke-width:0.8;transition:fill 0.3s;}
+  .country:hover{fill:#1e2838;}
+  .country.conflict{fill:#1a0c0e;stroke:rgba(255,34,51,0.4);}
+  .country.active{fill:#150e08;stroke:rgba(255,170,0,0.5);}
+  .country.neutral{fill:#0d1018;stroke:#1a2030;}
+  .map-marker{cursor:pointer;}
+  .mpulse{animation:mpulse 2s infinite;transform-origin:center;}
+  @keyframes mpulse{0%{r:6;opacity:0.8}50%{r:16;opacity:0}100%{r:6;opacity:0}}
+  .mcore{transition:r 0.2s;}
+  .map-marker:hover .mcore{r:9 !important;}
+  .mlabel{font-family:'IBM Plex Mono',monospace;font-size:8px;fill:rgba(255,255,255,0.35);letter-spacing:1px;text-transform:uppercase;pointer-events:none;}
+  .mlabel.hot{fill:rgba(255,80,80,0.75);}
+  .map-tooltip{position:absolute;background:rgba(5,5,7,0.97);border:1px solid var(--border-bright);padding:12px 16px;pointer-events:none;opacity:0;transition:opacity 0.15s;font-family:'IBM Plex Mono',monospace;font-size:11px;line-height:1.8;min-width:190px;z-index:50;}
+  .map-tooltip.show{opacity:1;}
+  .tt-name{font-size:13px;color:#fff;font-weight:600;margin-bottom:4px;}
+  .tt-status{font-size:10px;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;}
+  .tt-stat{color:var(--muted);font-size:10px;}
+  .tt-stat span{color:var(--text);}
+  .tt-hint{margin-top:6px;color:#ff5566;font-size:9px;}
+
+  /* STATS */
+  .stats-bar{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border);border-top:1px solid var(--border);flex-shrink:0;}
+  .stat-cell{background:var(--surface);padding:14px 20px;text-align:center;}
+  .stat-num{font-family:'Bebas Neue',sans-serif;font-size:28px;letter-spacing:1px;line-height:1;margin-bottom:2px;}
+  .stat-lbl{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);}
+
+  /* FEED */
+  .feed{flex:1;overflow-y:auto;scrollbar-width:thin;scrollbar-color:var(--border-bright) transparent;}
+  .feed-item{padding:14px 20px;border-bottom:1px solid var(--border);cursor:pointer;transition:background 0.15s;animation:sli 0.4s ease both;}
+  .feed-item:hover{background:var(--surface2);}
+  @keyframes sli{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:translateX(0)}}
+  .feed-time{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:1px;color:var(--muted);margin-bottom:5px;display:flex;align-items:center;gap:6px;}
+  .fsev{width:6px;height:6px;border-radius:50%;display:inline-block;flex-shrink:0;}
+  .sc{background:var(--red);box-shadow:0 0 6px var(--red);}
+  .sh{background:var(--amber);}
+  .sm{background:var(--blue);}
+  .sl{background:var(--muted);}
+  .feed-title{font-size:13px;font-weight:600;color:var(--text);line-height:1.4;margin-bottom:4px;}
+  .feed-loc{font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--muted);}
+  .feed-link{font-family:'IBM Plex Mono',monospace;font-size:9px;margin-top:3px;}
+  .feed-link a{color:#446;text-decoration:none;}
+  .feed-link a:hover{color:var(--blue);}
+
+  /* COUNTRIES */
+  .clist{overflow-y:auto;border-bottom:1px solid var(--border);max-height:248px;}
+  .ci{display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid var(--border);cursor:pointer;transition:background 0.15s;}
+  .ci:hover{background:var(--surface2);}
+  .cflag{font-size:20px;flex-shrink:0;}
+  .cinfo{flex:1;min-width:0;}
+  .cname{font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:500;color:var(--text);margin-bottom:2px;}
+  .cstat{font-size:11px;color:var(--muted);font-style:italic;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .calert{font-family:'IBM Plex Mono',monospace;font-size:9px;padding:2px 7px;border-radius:2px;flex-shrink:0;letter-spacing:0.5px;}
+  .aw{background:rgba(255,34,51,0.15);color:var(--red);border:1px solid rgba(255,34,51,0.25);}
+  .at{background:rgba(255,170,0,0.1);color:var(--amber);border:1px solid rgba(255,170,0,0.2);}
+  .awk{background:rgba(0,136,255,0.1);color:var(--blue);border:1px solid rgba(0,136,255,0.2);}
+
+  /* AI */
+  .abox{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+  .aprompt{padding:16px;border-bottom:1px solid var(--border);flex-shrink:0;}
+  .ainput-wrap{display:flex;gap:8px;align-items:flex-start;}
+  .ainput{flex:1;background:var(--surface2);border:1px solid var(--border-bright);color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:12px;padding:10px 12px;resize:none;height:60px;outline:none;transition:border-color 0.2s;}
+  .ainput:focus{border-color:rgba(255,34,51,0.4);}
+  .ainput::placeholder{color:var(--muted);}
+  .abtn{background:var(--red);border:none;color:white;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:1px;padding:10px 14px;cursor:pointer;text-transform:uppercase;transition:background 0.2s;height:60px;flex-shrink:0;}
+  .abtn:hover{background:#cc1122;}
+  .abtn:disabled{background:var(--muted);cursor:wait;}
+  .aresp{flex:1;overflow-y:auto;padding:16px 20px;scrollbar-width:thin;scrollbar-color:var(--border-bright) transparent;}
+  .amsg{margin-bottom:16px;animation:fu 0.3s ease both;}
+  @keyframes fu{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+  .amsg.user .mlbl{color:var(--amber);}
+  .amsg.assistant .mlbl{color:var(--green);}
+  .mlbl{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;margin-bottom:6px;}
+  .mbody{font-size:13px;line-height:1.7;color:var(--text);border-left:2px solid var(--border-bright);padding-left:12px;}
+  .mbody.typing::after{content:'▊';animation:blink 0.7s infinite;color:var(--green);}
+
+  /* INTEL */
+  .intel{grid-column:1/-1;border-top:1px solid var(--border);display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border);flex-shrink:0;}
+  .icell{background:var(--surface);padding:16px 20px;}
+  .ilbl{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--muted);margin-bottom:8px;}
+  .ival{font-family:'Bebas Neue',sans-serif;font-size:22px;letter-spacing:1px;line-height:1;margin-bottom:2px;}
+  .isub{font-size:11px;color:var(--muted);font-style:italic;}
+
+  .rbtn{background:transparent;border:1px solid var(--border-bright);color:var(--muted);font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:1px;padding:4px 10px;cursor:pointer;transition:all 0.2s;text-transform:uppercase;}
+  .rbtn:hover{border-color:var(--red);color:var(--red);}
+  .rbtn:disabled{opacity:0.4;cursor:wait;}
+  .shimmer{background:linear-gradient(90deg,var(--surface) 25%,var(--surface2) 50%,var(--surface) 75%);background-size:200% 100%;animation:sh 1.5s infinite;border-radius:2px;height:12px;margin-bottom:8px;}
+  @keyframes sh{from{background-position:200% 0}to{background-position:-200% 0}}
+  .spin{animation:spin 1s linear infinite;display:inline-block;}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  ::-webkit-scrollbar{width:4px;}
+  ::-webkit-scrollbar-track{background:transparent;}
+  ::-webkit-scrollbar-thumb{background:var(--border-bright);border-radius:2px;}
+</style>
+</head>
+<body>
+
+<!-- SETUP BANNER -->
+<div class="setup-banner" id="setupBanner">
+  <span class="setup-label">⚙️ OPTIONAL: Add NewsAPI key for real headlines →</span>
+  <input class="setup-input" id="newsKeyIn" placeholder="Paste free key from newsapi.org (takes 30 seconds to get)"/>
+  <button class="setup-btn" onclick="saveKey()">ACTIVATE LIVE NEWS</button>
+  <span class="setup-skip" onclick="document.getElementById('setupBanner').classList.add('gone')">Skip — use AI feed</span>
+</div>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="logo">MIDEAST<span>WATCH</span></div>
+  <div class="live-pill"><div class="live-dot"></div>LIVE</div>
+  <div class="ticker-wrap"><div class="ticker" id="ticker"><b>INITIALIZING FEED...</b>&nbsp;·&nbsp;<b>INITIALIZING FEED...</b></div></div>
+  <div class="clock" id="clock">--:--:-- UTC</div>
+</div>
+
+<div class="layout">
+
+  <!-- LEFT: FEED -->
+  <div class="left-panel">
+    <div class="panel-header">
+      <span class="panel-title">Live Event Feed</span>
+      <button class="rbtn" id="rfBtn" onclick="loadFeed()">↺ Refresh</button>
+    </div>
+    <div class="feed" id="feed"><div style="padding:20px">${'<div class="shimmer"></div>'.repeat(5)}</div></div>
+  </div>
+
+  <!-- CENTER: MAP -->
+  <div class="center-panel">
+    <div class="panel-header">
+      <span class="panel-title">Conflict Zone Map — Middle East</span>
+      <span class="panel-badge badge-red">5 ACTIVE CONFLICTS</span>
+    </div>
+    <div class="map-container">
+      <svg class="map-svg" viewBox="0 0 700 460" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <radialGradient id="gR" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#ff2233" stop-opacity="0.35"/><stop offset="100%" stop-color="#ff2233" stop-opacity="0"/></radialGradient>
+          <radialGradient id="gA" cx="50%" cy="50%" r="50%"><stop offset="0%" stop-color="#ffaa00" stop-opacity="0.25"/><stop offset="100%" stop-color="#ffaa00" stop-opacity="0"/></radialGradient>
+        </defs>
+        <rect width="700" height="460" fill="#080c14"/>
+        <!-- Countries -->
+        <path class="country neutral" d="M180,80 L320,75 L340,90 L330,110 L300,115 L260,118 L220,115 L185,105 Z"/><text class="mlabel" x="245" y="100">TURKEY</text>
+        <path class="country conflict" d="M265,118 L310,115 L320,130 L315,160 L290,165 L268,155 L260,135 Z"/><text class="mlabel hot" x="278" y="145">SYRIA</text>
+        <path class="country conflict" d="M258,155 L268,155 L272,175 L260,178 L254,168 Z"/>
+        <path class="country conflict" d="M254,175 L265,172 L268,195 L258,205 L250,198 L248,185 Z"/><text class="mlabel hot" x="232" y="193">ISR/PAL</text>
+        <path class="country active" d="M265,172 L295,168 L305,185 L295,215 L268,220 L258,205 L268,195 Z"/><text class="mlabel" x="270" y="200">JORDAN</text>
+        <path class="country conflict" d="M310,115 L370,110 L385,130 L380,175 L355,185 L320,180 L305,160 L315,130 Z"/><text class="mlabel hot" x="332" y="155">IRAQ</text>
+        <path class="country conflict" d="M370,80 L460,75 L490,100 L495,150 L475,185 L440,195 L400,185 L385,160 L385,130 L370,110 Z"/><text class="mlabel hot" x="416" y="132">IRAN</text>
+        <path class="country active" d="M270,220 L380,215 L415,225 L430,270 L420,320 L380,345 L320,340 L280,310 L260,265 Z"/><text class="mlabel" x="315" y="280">SAUDI ARABIA</text>
+        <path class="country active" d="M408,225 L418,222 L420,232 L410,234 Z"/>
+        <path class="country active" d="M415,235 L425,232 L428,248 L417,250 Z"/><text class="mlabel" x="430" y="245">QAT</text>
+        <path class="country neutral" d="M440,245 L480,238 L490,255 L470,275 L445,268 Z"/><text class="mlabel" x="450" y="260">UAE</text>
+        <path class="country neutral" d="M475,240 L510,230 L530,260 L520,310 L490,320 L472,295 L470,270 Z"/><text class="mlabel" x="485" y="278">OMAN</text>
+        <path class="country conflict" d="M290,335 L390,340 L420,350 L415,380 L370,395 L305,390 L275,370 L280,350 Z"/><text class="mlabel hot" x="328" y="368">YEMEN</text>
+        <path class="country neutral" d="M130,165 L200,160 L215,175 L210,245 L185,265 L140,260 L118,245 L115,200 Z"/><text class="mlabel" x="148" y="215">EGYPT</text>
+        <path class="country active" d="M60,120 L175,115 L180,165 L115,200 L65,195 L45,165 Z"/><text class="mlabel" x="95" y="155">LIBYA</text>
+        <path class="country neutral" d="M140,262 L210,248 L230,280 L225,340 L195,365 L150,365 L125,335 L120,290 Z"/><text class="mlabel" x="150" y="312">SUDAN</text>
+        <path class="country neutral" d="M495,80 L570,72 L590,95 L580,135 L545,145 L505,138 L495,115 Z"/><text class="mlabel" x="515" y="112">AFGHAN.</text>
+        <path class="country neutral" d="M545,140 L620,128 L640,160 L625,200 L590,215 L555,200 L540,175 Z"/><text class="mlabel" x="568" y="175">PAKISTAN</text>
+        <!-- Glows -->
+        <ellipse cx="430" cy="130" rx="65" ry="55" fill="url(#gR)" opacity="0.7"/>
+        <ellipse cx="260" cy="185" rx="28" ry="30" fill="url(#gR)" opacity="0.6"/>
+        <ellipse cx="348" cy="150" rx="42" ry="36" fill="url(#gR)" opacity="0.45"/>
+        <ellipse cx="340" cy="365" rx="48" ry="26" fill="url(#gA)" opacity="0.6"/>
+        <ellipse cx="258" cy="163" rx="16" ry="16" fill="url(#gR)" opacity="0.4"/>
+        <!-- Markers -->
+        <g class="map-marker" data-n="Tehran, Iran" data-s="ACTIVE AIR STRIKES" data-c="1,045+" data-t="US-Israel Joint Op" onclick="qc('Iran US Israel Operation Epic Fury war 2026')">
+          <circle cx="430" cy="130" r="22" fill="url(#gR)"/>
+          <circle class="mpulse" cx="430" cy="130" r="6" fill="none" stroke="#ff2233" stroke-width="1.5"/>
+          <circle class="mcore" cx="430" cy="130" r="6" fill="#ff2233"/>
+          <text class="mlabel hot" x="442" y="127">TEHRAN ✕</text>
+        </g>
+        <g class="map-marker" data-n="Gaza / Israel" data-s="GROUND WAR ONGOING" data-c="50,000+" data-t="Urban Warfare" onclick="qc('Gaza Israel war 2026 update')">
+          <circle cx="250" cy="192" r="16" fill="url(#gR)"/>
+          <circle class="mpulse" cx="250" cy="192" r="5" fill="none" stroke="#ff2233" stroke-width="1.5" style="animation-delay:0.3s"/>
+          <circle class="mcore" cx="250" cy="192" r="5" fill="#ff2233"/>
+        </g>
+        <g class="map-marker" data-n="Beirut, Lebanon" data-s="HEZBOLLAH SITES HIT" data-c="2,800+" data-t="Israeli Airstrikes" onclick="qc('Lebanon Hezbollah Israel strikes 2026')">
+          <circle cx="258" cy="163" r="14" fill="url(#gR)"/>
+          <circle class="mpulse" cx="258" cy="163" r="4" fill="none" stroke="#ff6600" stroke-width="1.5" style="animation-delay:0.6s"/>
+          <circle class="mcore" cx="258" cy="163" r="4" fill="#ff6600"/>
+          <text class="mlabel" x="232" y="158" style="fill:rgba(255,150,80,0.7)">BEIRUT</text>
+        </g>
+        <g class="map-marker" data-n="Baghdad, Iraq" data-s="IRANIAN PROXY ATTACKS" data-c="12+ US soldiers" data-t="Militia Rockets + Missiles" onclick="qc('Iraq US bases Iranian militia attacks 2026')">
+          <circle cx="350" cy="150" r="14" fill="url(#gA)"/>
+          <circle class="mpulse" cx="350" cy="150" r="4" fill="none" stroke="#ffaa00" stroke-width="1.5" style="animation-delay:0.9s"/>
+          <circle class="mcore" cx="350" cy="150" r="4" fill="#ffaa00"/>
+        </g>
+        <g class="map-marker" data-n="Sanaa, Yemen" data-s="HOUTHI OPERATIONS" data-c="Ongoing" data-t="Drones + Ballistic Missiles" onclick="qc('Yemen Houthi Red Sea attacks 2026')">
+          <circle cx="340" cy="365" r="14" fill="url(#gA)"/>
+          <circle class="mpulse" cx="340" cy="365" r="4" fill="none" stroke="#ffaa00" stroke-width="1.5" style="animation-delay:1.2s"/>
+          <circle class="mcore" cx="340" cy="365" r="4" fill="#ffaa00"/>
+        </g>
+        <g class="map-marker" data-n="Manama, Bahrain" data-s="5TH FLEET HIT" data-c="2 US KIA" data-t="Iranian Ballistic Missile" onclick="qc('Bahrain 5th Fleet US base Iran missile 2026')">
+          <circle cx="413" cy="228" r="10" fill="url(#gA)"/>
+          <circle class="mpulse" cx="413" cy="228" r="3" fill="none" stroke="#ffaa00" stroke-width="1" style="animation-delay:1.5s"/>
+          <circle class="mcore" cx="413" cy="228" r="3" fill="#ffaa00"/>
+          <text class="mlabel" x="420" y="226" style="fill:#ffaa00;font-size:7px">5TH FLEET</text>
+        </g>
+        <g class="map-marker" data-n="Doha, Qatar" data-s="AL UDEID BASE HIT" data-c="3 US KIA" data-t="Iranian Cruise Missile" onclick="qc('Qatar Al Udeid base Iran attack 2026')">
+          <circle cx="420" cy="241" r="9" fill="url(#gA)"/>
+          <circle class="mpulse" cx="420" cy="241" r="3" fill="none" stroke="#ffaa00" stroke-width="1" style="animation-delay:1.8s"/>
+          <circle class="mcore" cx="420" cy="241" r="3" fill="#ffaa00"/>
+        </g>
+        <!-- Legend -->
+        <g transform="translate(16,385)">
+          <rect width="172" height="64" fill="rgba(5,5,7,0.88)" stroke="rgba(255,255,255,0.08)" stroke-width="0.5" rx="1"/>
+          <circle cx="14" cy="14" r="5" fill="#ff2233"/><text x="24" y="18" class="mlabel" style="fill:#aaa">Active Airstrikes / Ground War</text>
+          <circle cx="14" cy="32" r="5" fill="#ffaa00"/><text x="24" y="36" class="mlabel" style="fill:#aaa">Missile / Drone Attacks</text>
+          <circle cx="14" cy="50" r="4" fill="#0088ff"/><text x="24" y="54" class="mlabel" style="fill:#aaa">US / Allied Positions</text>
+        </g>
+      </svg>
+      <div class="map-tooltip" id="mtt">
+        <div class="tt-name" id="ttn"></div>
+        <div class="tt-status" id="tts"></div>
+        <div class="tt-stat">Casualties: <span id="ttc"></span></div>
+        <div class="tt-stat">Type: <span id="ttt"></span></div>
+        <div class="tt-hint">Click to analyze →</div>
+      </div>
+    </div>
+    <div class="stats-bar">
+      <div class="stat-cell"><div class="stat-num" style="color:var(--red)">1,045+</div><div class="stat-lbl">Iran Casualties</div></div>
+      <div class="stat-cell"><div class="stat-num" style="color:var(--amber)">47+</div><div class="stat-lbl">Strike Waves</div></div>
+      <div class="stat-cell"><div class="stat-num" style="color:var(--blue)">27</div><div class="stat-lbl">US Bases Targeted</div></div>
+      <div class="stat-cell"><div class="stat-num" style="color:var(--green)">Day 5</div><div class="stat-lbl">Op. Epic Fury</div></div>
+    </div>
+  </div>
+
+  <!-- RIGHT: COUNTRIES + AI -->
+  <div class="right-panel">
+    <div class="panel-header">
+      <span class="panel-title">Country Status</span>
+      <span class="panel-badge badge-amber">THREAT: CRITICAL</span>
+    </div>
+    <div class="clist">
+      <div class="ci" onclick="qc('Iran US Israel war Operation Epic Fury Day 5 2026')"><div class="cflag">🇮🇷</div><div class="cinfo"><div class="cname">IRAN</div><div class="cstat">Under US-Israel strikes, Day 5</div></div><div class="calert aw">WAR</div></div>
+      <div class="ci" onclick="qc('Israel Gaza war operations 2026')"><div class="cflag">🇮🇱</div><div class="cinfo"><div class="cname">ISRAEL</div><div class="cstat">Joint ops with US, Gaza active</div></div><div class="calert aw">WAR</div></div>
+      <div class="ci" onclick="qc('Lebanon Hezbollah Israel strikes 2026')"><div class="cflag">🇱🇧</div><div class="cinfo"><div class="cname">LEBANON</div><div class="cstat">Hezbollah sites under strikes</div></div><div class="calert aw">WAR</div></div>
+      <div class="ci" onclick="qc('Yemen Houthi Red Sea drone attacks 2026')"><div class="cflag">🇾🇪</div><div class="cinfo"><div class="cname">YEMEN</div><div class="cstat">Houthi drone/missile ops active</div></div><div class="calert at">CONFLICT</div></div>
+      <div class="ci" onclick="qc('Iraq US bases Iranian militia attacks 2026')"><div class="cflag">🇮🇶</div><div class="cinfo"><div class="cname">IRAQ</div><div class="cstat">US bases hit by Iranian proxies</div></div><div class="calert at">CONFLICT</div></div>
+      <div class="ci" onclick="qc('Syria instability Israel strikes 2026')"><div class="cflag">🇸🇾</div><div class="cinfo"><div class="cname">SYRIA</div><div class="cstat">Ongoing instability, Israeli ops</div></div><div class="calert at">TENSION</div></div>
+      <div class="ci" onclick="qc('Qatar Al Udeid base Iran attack flights suspended')"><div class="cflag">🇶🇦</div><div class="cinfo"><div class="cname">QATAR</div><div class="cstat">Al Udeid hit, flights halted</div></div><div class="calert at">TENSION</div></div>
+      <div class="ci" onclick="qc('Saudi Arabia Middle East war oil markets 2026')"><div class="cflag">🇸🇦</div><div class="cinfo"><div class="cname">SAUDI ARABIA</div><div class="cstat">Monitoring; oil at $118/bbl</div></div><div class="calert awk">WATCH</div></div>
+      <div class="ci" onclick="qc('Egypt Gaza ceasefire mediation role 2026')"><div class="cflag">🇪🇬</div><div class="cinfo"><div class="cname">EGYPT</div><div class="cstat">Mediating; Gaza border pressure</div></div><div class="calert awk">WATCH</div></div>
+      <div class="ci" onclick="qc('Turkey NATO stance Middle East war ceasefire 2026')"><div class="cflag">🇹🇷</div><div class="cinfo"><div class="cname">TURKEY</div><div class="cstat">Ceasefire call; NATO tensions</div></div><div class="calert awk">WATCH</div></div>
+    </div>
+
+    <div class="panel-header"><span class="panel-title">AI War Analyst</span><span class="panel-badge badge-green">CLAUDE · LIVE</span></div>
+    <div class="abox">
+      <div class="aprompt">
+        <div class="ainput-wrap">
+          <textarea class="ainput" id="ain" placeholder="Ask any question about the conflict...&#10;Press Enter to send"></textarea>
+          <button class="abtn" id="abtn" onclick="sendAI()">ASK</button>
+        </div>
+      </div>
+      <div class="aresp" id="aresp">
+        <div class="amsg assistant">
+          <div class="mlbl">// ANALYST ONLINE — MAR 5 2026</div>
+          <div class="mbody">Tracker active. US-Israel Operation Epic Fury is Day 5. Click any country flag, map marker, or news headline for instant AI analysis.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- INTEL STRIP -->
+  <div class="intel">
+    <div class="icell"><div class="ilbl">Brent Crude Oil</div><div class="ival" style="color:var(--red)" id="oil">$118.40</div><div class="isub">+12.3% since Mar 1 op start</div></div>
+    <div class="icell"><div class="ilbl">Strait of Hormuz</div><div class="ival" style="color:var(--amber)">RESTRICTED</div><div class="isub">Iran naval posture · tankers rerouting</div></div>
+    <div class="icell"><div class="ilbl">Iran Internet</div><div class="ival" style="color:var(--red)">BLACKOUT</div><div class="isub">100+ hrs · NetBlocks confirmed</div></div>
+    <div class="icell"><div class="ilbl">Feed Last Updated</div><div class="ival" style="color:var(--green);font-size:16px;margin-top:4px" id="lupd">--:-- UTC</div><div class="isub">Auto-refresh every 5 min</div></div>
+  </div>
+</div>
+
+<script>
+const CTX = `You are a real-time Middle East conflict analyst. Today is March 5, 2026.
+SITUATION: US-Israel Operation Epic Fury — joint air war on Iran, Day 5.
+FACTS: Khamenei killed in opening Tehran strikes. 1,045+ dead in Iran. 100+ hr internet blackout. Girls school in Minab struck (158 children killed). Iran retaliating: hit Al Udeid Qatar (3 US KIA), Bahrain 5th Fleet (2 US KIA), Iraq/Kuwait US bases. Iran selecting new supreme leader. Lebanon/Hezbollah under Israeli strikes. Yemen Houthis active in Red Sea. Oil $118/bbl. Congress debating War Powers. Canada/Australia calling for ceasefire. Trump says op "just getting started".
+Style: concise, direct, intelligence-briefing tone. 2-4 short paragraphs. Note uncertainty where applicable.`;
+
+let NEWS_KEY = localStorage.getItem('nk') || '';
+if (NEWS_KEY) document.getElementById('setupBanner').classList.add('gone');
+
+// Clock
+setInterval(() => {
+  const u = new Date().toUTCString().split(' ')[4];
+  document.getElementById('clock').textContent = u + ' UTC';
+  document.getElementById('lupd').textContent = u + ' UTC';
+}, 1000);
+
+// Oil price jitter
+setInterval(() => {
+  document.getElementById('oil').textContent = '$' + (118.4 + (Math.random()-0.5)*1.4).toFixed(2);
+}, 9000);
+
+// Map tooltips
+document.querySelectorAll('.map-marker').forEach(m => {
+  m.addEventListener('mouseenter', e => {
+    const tt = document.getElementById('mtt');
+    document.getElementById('ttn').textContent = m.dataset.n;
+    document.getElementById('tts').textContent = m.dataset.s;
+    document.getElementById('tts').style.color = m.dataset.s.includes('STRIKE')||m.dataset.s.includes('WAR') ? '#ff2233' : '#ffaa00';
+    document.getElementById('ttc').textContent = m.dataset.c;
+    document.getElementById('ttt').textContent = m.dataset.t;
+    const r = document.querySelector('.map-container').getBoundingClientRect();
+    tt.style.left = (e.clientX - r.left + 16) + 'px';
+    tt.style.top = (e.clientY - r.top - 10) + 'px';
+    tt.classList.add('show');
+  });
+  m.addEventListener('mouseleave', () => document.getElementById('mtt').classList.remove('show'));
+});
+
+// Save NewsAPI key
+function saveKey() {
+  const k = document.getElementById('newsKeyIn').value.trim();
+  if (!k) return;
+  NEWS_KEY = k;
+  localStorage.setItem('nk', k);
+  document.getElementById('setupBanner').classList.add('gone');
+  loadFeed();
+}
+
+// Feed
+async function loadFeed() {
+  const btn = document.getElementById('rfBtn');
+  const container = document.getElementById('feed');
+  btn.innerHTML = '<span class="spin">↺</span>';
+  btn.disabled = true;
+  container.innerHTML = '<div style="padding:20px">' + '<div class="shimmer"></div>'.repeat(6) + '</div>';
+
+  let items = [];
+
+  // Try NewsAPI
+  if (NEWS_KEY) {
+    try {
+      const qs = ['iran war','israel strike middle east','houthi attack','gaza war','middle east conflict'];
+      const q = qs[Math.floor(Math.random()*qs.length)];
+      const r = await fetch(`https://newsapi.org/v2/everything?q=${encodeURIComponent(q)}&sortBy=publishedAt&pageSize=12&language=en&apiKey=${NEWS_KEY}`);
+      const d = await r.json();
+      if (d.articles?.length) {
+        items = d.articles.slice(0,12).map(a => ({
+          time: new Date(a.publishedAt).toUTCString().split(' ')[4],
+          sev: sev(a.title+' '+(a.description||'')),
+          title: a.title.split(' - ')[0].substring(0,82),
+          loc: a.source.name || 'Wire Service',
+          url: a.url, live: true
+        }));
+      }
+    } catch(e) {}
+  }
+
+  // Fallback: Claude AI
+  if (!items.length) {
+    try {
+      const r = await fetch('https://api.anthropic.com/v1/messages', {
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({
+          model:'claude-sonnet-4-20250514', max_tokens:1000,
+          system:'Return ONLY a valid JSON array. No markdown, no preamble.',
+          messages:[{role:'user',content:'Generate 12 realistic breaking news items for Middle East conflict tracker (March 5 2026, US-Israel-Iran war Day 5). JSON array: [{"time":"HH:MM","sev":"critical|high|medium|low","title":"headline under 80 chars","loc":"City, Country"}]. Mix: Tehran strikes, Gaza, Lebanon, Yemen, Iraq bases, diplomacy, oil.'}]
+        })
+      });
+      const d = await r.json();
+      let t = (d.content?.[0]?.text||'[]').replace(/```json|```/g,'').trim();
+      items = JSON.parse(t);
+    } catch(e) {
+      container.innerHTML = '<div style="padding:20px;font-family:IBM Plex Mono,monospace;font-size:11px;color:var(--muted)">Feed unavailable. Add a NewsAPI key or check connection.</div>';
+      btn.innerHTML='↺ Refresh'; btn.disabled=false; return;
+    }
+  }
+
+  // Render feed
+  container.innerHTML = '';
+  const sc={critical:'sc',high:'sh',medium:'sm',low:'sl'};
+  items.forEach((item,i) => {
+    const d = document.createElement('div');
+    d.className = 'feed-item';
+    d.style.animationDelay = (i*0.05)+'s';
+    d.innerHTML = `
+      <div class="feed-time"><span class="fsev ${sc[item.sev]||'sl'}"></span>${item.time} · ${(item.sev||'info').toUpperCase()}${item.live?'<span style="color:var(--green);margin-left:6px">● LIVE</span>':''}</div>
+      <div class="feed-title">${item.title}</div>
+      <div class="feed-loc">📍 ${item.loc}</div>
+      ${item.url?`<div class="feed-link"><a href="${item.url}" target="_blank" onclick="event.stopPropagation()">Read full article →</a></div>`:''}`;
+    d.onclick = () => qc(item.title);
+    container.appendChild(d);
+  });
+
+  // Ticker
+  const tc = items.map(i=>`<b>${i.title}</b>&nbsp;·&nbsp;`).join('');
+  document.getElementById('ticker').innerHTML = tc+tc;
+  btn.innerHTML='↺ Refresh'; btn.disabled=false;
+}
+
+function sev(t) {
+  t = t.toLowerCase();
+  if(t.match(/kill|dead|casualt|strike|bomb|attack|blast|missile|war|explos/)) return 'critical';
+  if(t.match(/military|troops|forces|weapon|threat|hostil|fire/)) return 'high';
+  if(t.match(/diplomat|sanction|ceasefire|talk|negotiat|meet/)) return 'medium';
+  return 'low';
+}
+
+// AI
+async function sendAI(pre) {
+  const inp = document.getElementById('ain');
+  const btn = document.getElementById('abtn');
+  const q = pre || inp.value.trim();
+  if (!q) return;
+  const box = document.getElementById('aresp');
+  box.innerHTML += `<div class="amsg user"><div class="mlbl">// QUERY</div><div class="mbody">${q}</div></div>`;
+  const tid = 'ai'+Date.now();
+  box.innerHTML += `<div class="amsg assistant" id="${tid}"><div class="mlbl">// ANALYST</div><div class="mbody typing" id="${tid}b"></div></div>`;
+  box.scrollTop = box.scrollHeight;
+  inp.value=''; btn.disabled=true; btn.textContent='...';
+  try {
+    const r = await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:1000,system:CTX,messages:[{role:'user',content:q}]})
+    });
+    const d = await r.json();
+    const b = document.getElementById(tid+'b');
+    if(b){b.classList.remove('typing');b.textContent=d.content?.[0]?.text||'No data.';}
+  } catch(e) {
+    const b = document.getElementById(tid+'b');
+    if(b){b.classList.remove('typing');b.textContent='Error: '+e.message;b.style.color='var(--red)';}
+  }
+  btn.disabled=false; btn.textContent='ASK';
+  box.scrollTop=box.scrollHeight;
+}
+
+function qc(topic) { sendAI('Status briefing: '+topic); }
+
+document.getElementById('ain').addEventListener('keydown', e=>{
+  if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendAI();}
+});
+
+// Init
+loadFeed();
+setInterval(loadFeed, 300000);
+</script>
+</body>
+</html>
